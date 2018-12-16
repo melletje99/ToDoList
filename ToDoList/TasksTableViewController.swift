@@ -8,8 +8,13 @@
 
 import UIKit
 
-class TasksTableViewController: UITableViewController, ToDoCellDelegate{
+class TasksTableViewController: UITableViewController, ToDoCellDelegate, UISearchBarDelegate {
     var todos = [ToDo]()
+    
+    @IBOutlet weak var searchBar: UISearchBar!
+    
+    var filteredData = [ToDo]()
+    var isSearching = false
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -20,10 +25,18 @@ class TasksTableViewController: UITableViewController, ToDoCellDelegate{
         } else {
             todos = ToDo.loadSampleToDos()
         }
+        
+        searchBar.delegate = self
+        searchBar.returnKeyType = UIReturnKeyType.done
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return todos.count
+        if isSearching {
+            return filteredData.count
+        } else {
+            return todos.count
+        }
+        
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -31,7 +44,14 @@ class TasksTableViewController: UITableViewController, ToDoCellDelegate{
             fatalError("Could not dequeue a cell")
         }
         cell.delegate = self
-        let todo = todos[indexPath.row]
+        var todo: ToDo
+        if isSearching {
+            todo = filteredData[indexPath.row]
+        } else {
+            todo = todos[indexPath.row]
+        }
+        
+        
         cell.titleLabel?.text = todo.title
         cell.isCompleteButton.isSelected = todo.isComplete
         return cell
@@ -43,7 +63,18 @@ class TasksTableViewController: UITableViewController, ToDoCellDelegate{
     
     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
-            todos.remove(at: indexPath.row)
+            if isSearching {
+                let removed = filteredData.remove(at: indexPath.row)
+                
+                for i in 0...(todos.count - 1 ) {
+                    if todos[i].title == removed.title {
+                        todos.remove(at: i)
+                    }
+                }
+            } else {
+                todos.remove(at: indexPath.row)
+            }
+            
             tableView.deleteRows(at: [indexPath], with: .fade)
             ToDo.saveToDos(todos)
         }
@@ -53,18 +84,36 @@ class TasksTableViewController: UITableViewController, ToDoCellDelegate{
         if segue.identifier == "showDetails" {
             let todoTableViewController = segue.destination as! ToDoTableViewController
             let indexPath = tableView.indexPathForSelectedRow!
-            let selectedTodo = todos[indexPath.row]
+            var selectedTodo: ToDo
+            if isSearching {
+                selectedTodo = filteredData[indexPath.row]
+            } else {
+                selectedTodo = todos[indexPath.row]
+            }
             todoTableViewController.todo = selectedTodo
         }
     }
     
     func checkmarkTapped(sender: ToDoCell) {
         if let indexPath = tableView.indexPath(for: sender){
-            var todo = todos[indexPath.row]
-            todo.isComplete = !todo.isComplete
-            todos[indexPath.row] = todo
-            tableView.reloadRows(at: [indexPath], with: .automatic)
-            ToDo.saveToDos(todos)
+            if isSearching {
+                var todo = filteredData[indexPath.row]
+                todo.isComplete = !todo.isComplete
+                filteredData[indexPath.row] = todo
+                tableView.reloadRows(at: [indexPath], with: .automatic)
+                for i in 0...(todos.count - 1) {
+                    if todos[i].title == filteredData[indexPath.row].title {
+                        todos[i] = filteredData[indexPath.row]
+                    }
+                }
+            } else {
+                var todo = todos[indexPath.row]
+                todo.isComplete = !todo.isComplete
+                todos[indexPath.row] = todo
+                tableView.reloadRows(at: [indexPath], with: .automatic)
+                ToDo.saveToDos(todos)
+            }
+            
         }
     }
     
@@ -74,7 +123,19 @@ class TasksTableViewController: UITableViewController, ToDoCellDelegate{
         
         if let todo = sourceViewController.todo{
             if let selectedIndexPath = tableView.indexPathForSelectedRow {
-                todos[selectedIndexPath.row] = todo
+                if isSearching {
+                    filteredData[selectedIndexPath.row] = todo
+                    for i in 0...(filteredData.count - 1) {
+                        for j in 0...(todos.count - 1 ) {
+                            if filteredData[i].title == todos[j].title {
+                                todos[j] = filteredData[i]
+                            }
+                        }
+                    }
+                } else {
+                    todos[selectedIndexPath.row] = todo
+                }
+                
                 tableView.reloadRows(at: [selectedIndexPath], with: .none)
             } else {
                 let newIndexPath = IndexPath(row: todos.count, section: 0)
@@ -83,6 +144,18 @@ class TasksTableViewController: UITableViewController, ToDoCellDelegate{
             }
         }
         ToDo.saveToDos(todos)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text == nil || searchBar.text == "" {
+            isSearching = false
+            view.endEditing(true)
+            tableView.reloadData()
+        } else {
+            isSearching = true
+            filteredData = todos.filter({$0.title == searchBar.text!})
+            tableView.reloadData()
+        }
     }
     
     

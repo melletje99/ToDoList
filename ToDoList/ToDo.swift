@@ -14,6 +14,7 @@ struct ToDo: Codable {
     var dueDate: Date
     var notes: String?
     
+    
     static let DocumentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
     static let ArchiveURL = DocumentsDirectory.appendingPathComponent("todos").appendingPathExtension("plist")
     
